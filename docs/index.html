@@ -239,7 +239,7 @@ footer { border-top: 1px solid var(--line); margin-top: 48px; padding-top: 18px;
 
 <section id="results">
   <p class="eyebrow">Results · October 2026</p>
-  <h2>Frontier models repair about half of calibrated failures, and the top is a tie</h2>
+  <h2>Frontier models repair about half of calibrated failures, and the top is not resolved</h2>
   <p class="col" style="margin-top:12px">Each model ran at its maximal reasoning effort within a 64 000-token output budget (Anthropic models at <code>high</code>), with five continuations per intervention. Intervals are 95 % bootstrap intervals over the 62 items. No pair of models is separated after Holm correction.</p>
 
   <h3 style="margin-top:28px">Autopsy track</h3>
@@ -291,7 +291,7 @@ footer { border-top: 1px solid var(--line); margin-top: 48px; padding-top: 18px;
     </table>
   </div>
   <div class="legend"><span>net damage prevented, points</span><span class="ci">95 % bootstrap interval</span></div>
-  <p class="note">The two leaders are statistically tied and stay in front for every interruption cost from 0 to 20 points; 3 of 10 pairs are significant after Holm correction. False alarms are not concentrated on the weaker workers' successes (8 % against 18 % on the strongest worker's), and the ranking is unchanged without the strongest worker's runs.</p>
+  <p class="note">The two leaders are not statistically separable (which does not establish equivalence) and stay in front for every interruption cost from 0 to 20 points; 3 of 10 pairs are significant after Holm correction. False alarms are not concentrated on the weaker workers' successes (8 % against 18 % on the strongest worker's), and the ranking is unchanged without the strongest worker's runs.</p>
 
   <h3 style="margin-top:40px">Explaining is not preventing</h3>
   <p class="col" style="margin-top:8px">Four supervisors were also autopsy diagnosers, on the same 62 failing runs. The live effect is reported without the interruption cost.</p>
