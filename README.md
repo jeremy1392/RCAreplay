@@ -14,6 +14,73 @@ Two tracks share this protocol:
 
 This repository contains the environment, the harvesting and calibration pipeline, the two evaluation tracks, the OpenRouter client and the reporting scripts. The harvested items, the calibrated pools and the caches of diagnoses and continuations used for the companion paper (in preparation) are not part of this repository.
 
+**Contents:** [Results](#results-october-2026) · [How the score is computed](#how-the-score-is-computed) · [The environment](#the-environment-opsworld) · [Pipeline](#pipeline) · [Protocol and guardrails](#protocol-and-guardrails) · [Installation and usage](#installation-and-usage) · [Repository layout](#repository-layout) · [Limitations](#limitations-of-the-design) · [Licence and citation](#licence-and-citation) · [Project page](https://jeremy1392.github.io/RCAreplay/)
+
+## Results (October 2026)
+
+Setup: 62 calibrated systematic failures (29 at levels 4–5, 33 at level 6) harvested from three small workers (DeepSeek V4.1 Flash 41, Claude Haiku 5.5 11, GPT-6 Luna 10); 13 diagnosers, each at its maximal reasoning effort within a 64 000-token output budget (Anthropic models at `high`, see below); `k = 5` continuations per intervention; live oversight on the 87 runs seen by all five supervisors (the 62 failures plus 25 calibrated successes as controls). Intervals are 95 % bootstrap intervals over items or runs; pairwise comparisons are paired sign-flip permutation tests with Holm correction. Scores are in points of continuation success.
+
+### Autopsy track
+
+| # | Model | Effort | Causal repair | 95 % CI | Reasoning tokens / diagnosis |
+|---|---|---|---|---|---|
+| 1 | Grok 4.7 | xhigh | **+51.3** | +40 … +63 | 38,820 |
+| 2 | Kimi K3 | max | +48.4 | +38 … +59 | 12,099 |
+| 3 | Gemini 4 Argon | high | +48.4 | +37 … +60 | 19,125 |
+| 4 | Gemini 3.8 Flash | high | +47.1 | +35 … +59 | 41,704 |
+| 5 | GPT-6.1 Sol | max | +45.2 | +35 … +55 | 3,385 |
+| 6 | GLM 5.3 (text-only) | max | +45.2 | +36 … +55 | 26,772 |
+| 7 | Claude Opus 5.5 | high | +42.9 | +33 … +53 | 1,428 |
+| 8 | GPT-6 Astra | max | +42.9 | +32 … +54 | 4,163 |
+| 9 | DeepSeek V4 Pro (text-only) | max | +42.3 | +31 … +53 | 25,370 |
+| 10 | Claude Sonnet 5.5 | high | +38.4 | +28 … +48 | 1,116 |
+| 11 | GPT-6 Luna | max | +37.1 | +26 … +47 | 13,214 |
+| 12 | Claude Fable 5.1 | high | +36.1 | +26 … +47 | 2,591 |
+| 13 | Claude Haiku 5.5 | high | +32.3 | +22 … +43 | 3,921 |
+| — | Placebo baseline: the original action replayed at a random step | — | −0.6 | −2 … +0 | — |
+
+Causal repair = success rate of the worker's continuation after the correction minus that of the paired placebo (same step, original action). Text-only models receive a placeholder in place of level-6 attachments.
+
+- **The top of the ranking is not separable.** None of the 78 pairwise comparisons is significant after Holm correction; against Grok 4.7, the first model that is significantly worse even without correction is DeepSeek V4 Pro (rank 9). The split-half reliability of the ranking is ρ = 0.47 (0.62 after Spearman–Brown), and separating two models 10 points apart with 80 % power needs about 84 items.
+- **Flagship models do not lead.** GPT-6 Astra ranks 8th and Claude Fable 5.1 12th. The Claude models ran at `high`, and an ablation shows that `max` is worth +15.2 points to Claude Haiku 5.5 (p = 0.011), so the four Claude ranks are lower bounds. Reasoning volume is only loosely related to rank (ρ = 0.54, p = 0.056 across the 13 models).
+- **Hard items exist.** 5 items are repaired by no model in any continuation; 35 % of items have a model-averaged repair below 20 points and 19 % above 80.
+- **The last-step shortcut does not transfer.** GPT-6.1 Sol forced to choose the final step scores +28.1 against +45.2 with free choice (−17.1 points, p = 0.004). Scoring by agreement with a consensus step instead of by replay would rank GPT-6 Astra first and Grok 4.7 third (ρ = 0.43 between the two scores); the consensus step is the last step in only 21 % of items.
+- **Scores are reproducible, individual diagnoses less so.** A second sample of GPT-6 Luna scores +33.5 against +37.1 (p = 0.53) and chooses the same step in 74 % of items (item-level correlation 0.58); a reworded prompt gives +30.6 (p = 0.16), the same step in 71 %. GPT-6.1 Sol at `medium` effort scores +40.6 against +45.2 at `max` (p = 0.28).
+- **Level 6 (images).** In 17 of the 33 level-6 failures the worker never opened the attachment. Most vision models lose points at level 6 (Grok 4.7 +57.9 → +45.5, GPT-6 Astra +51.0 → +35.8, Claude Opus 5.5 +49.7 → +37.0), while two text-only models stay competitive (DeepSeek V4 Pro +42.4, GLM 5.3 +39.4): making the worker open the image does not require seeing it.
+
+### Live oversight track
+
+87 runs: 62 heading for failure, 25 for success.
+
+| # | Supervisor | Net damage prevented | 95 % CI | False alarms | Output tokens / call |
+|---|---|---|---|---|---|
+| 1 | Gemini 3.8 Flash | **+29.1** | +21 … +38 | 2/25 | 5,906 |
+| 2 | DeepSeek V4.1 Flash (open weights) | **+27.5** | +19 … +36 | 3/25 | 8,660 |
+| 3 | Claude Haiku 5.5 | +21.7 | +14 … +30 | 1/25 | 1,732 |
+| 4 | GPT-6 Luna | +19.7 | +12 … +28 | 8/25 | 1,766 |
+| 5 | GPT-6.1 Sol | +18.1 | +11 … +26 | 3/25 | 1,008 |
+
+Net = mean over runs of (success with the intervention − success of the paired placebo) minus 5 points per intervention. The two leaders are statistically tied and stay in front for every interruption cost from 0 to 20 points; 3 of the 10 pairs are significant after Holm correction (Gemini 3.8 Flash above GPT-6.1 Sol and GPT-6 Luna, DeepSeek V4.1 Flash above GPT-6.1 Sol).
+
+**The worker's identity does not leak the outcome.** Every failing run comes from the three weaker workers and 18 of the 25 control successes from Qwen 3.8 Flash, so a supervisor that recognised a worker's style could score well without reading the run. Over the 59 (supervisor, run) pairs that involve a success of a weaker worker (6 extra successes were added for this check, seen by every supervisor but Gemini 3.8 Flash), the supervisors raise 5 false alarms (8 %), against 16 over the 90 pairs that involve a Qwen success (18 %); removing every Qwen run leaves the ranking unchanged.
+
+### Explaining versus preventing
+
+Same 62 failing runs, same models; the live effect is reported without the interruption cost.
+
+| Model | Autopsy | Live oversight | Δ | 95 % CI | p |
+|---|---|---|---|---|---|
+| GPT-6.1 Sol | +45.2 | +30.6 | **−14.5** | −23 … −5 | 0.002 |
+| GPT-6 Luna | +37.1 | +32.9 | −4.2 | −14 … +6 | 0.45 |
+| Gemini 3.8 Flash | +47.1 | +45.5 | −1.6 | −10 … +7 | 0.77 |
+| Claude Haiku 5.5 | +32.3 | +35.5 | +3.2 | −8 … +14 | 0.61 |
+
+GPT-6.1 Sol is among the best post-hoc diagnosers and the weakest live supervisor. Its interventions come early (16 % at the first irreversible action, mean relative position 0.31 on a 0–1 scale) and 81 % of them make the worker read something rather than redo the pending action. The gap is the only significant one of the four (p = 0.010 after Holm correction); its size and whether it is specific to this model remain to be established on more runs and models.
+
+### Compute
+
+6,258 worker continuations in total. A transcript shown to a diagnoser averages 14,347 tokens and 66 steps; a supervised run has 17 checkpoints on average, each a separate call to the supervisor.
+
 ## How the score is computed
 
 - A **diagnosis** is a step index and a replacement tool call. The replay (`replayrca/replay.py`) restores the world at that step, executes the replacement call, and lets the original worker agent continue from there. Each continuation is run `k` times (default 5), and the success rate is measured by the task checker.
