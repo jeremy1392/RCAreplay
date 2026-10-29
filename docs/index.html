@@ -1,0 +1,353 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ReplayRCA</title>
+<meta name="description" content="ReplayRCA scores diagnoses of AI-agent failures and live supervision of agents by counterfactual replay against a paired placebo.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Source+Sans+3:ital,wght@0,400;0,600;1,400&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: one reading column (72ch) for text, wider measure (1080px) for the results tables; the replay diagram is the hero. */
+:root {
+  --bg: #f4f8f7;
+  --surface: #ffffff;
+  --fg: #14211f;
+  --muted: #5a6b68;
+  --line: #d3dedb;
+  --accent: #0f7f70;
+  --accent-ink: #0a5a50;
+  --accent-soft: #d9efeb;
+  --placebo: #8a97a3;
+  --placebo-soft: #e4e9ed;
+  --neg: #b2502a;
+  --code-bg: #eef3f2;
+  --display: "Bricolage Grotesque", "Avenir Next", "Segoe UI", system-ui, sans-serif;
+  --body: "Source Sans 3", "Segoe UI", system-ui, sans-serif;
+  --mono: "JetBrains Mono", "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e1615; --surface: #16201f; --fg: #e6eeec; --muted: #9db0ab; --line: #2a3b38;
+    --accent: #3ecdb7; --accent-ink: #8ae6d6; --accent-soft: #163b36; --placebo: #8694a0; --placebo-soft: #27323a;
+    --neg: #e68a60; --code-bg: #121c1a; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e1615; --surface: #16201f; --fg: #e6eeec; --muted: #9db0ab; --line: #2a3b38;
+  --accent: #3ecdb7; --accent-ink: #8ae6d6; --accent-soft: #163b36; --placebo: #8694a0; --placebo-soft: #27323a;
+  --neg: #e68a60; --code-bg: #121c1a; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0; background: var(--bg); color: var(--fg); font-family: var(--body); font-size: 17px; line-height: 1.55;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 0 48px;
+}
+a { color: var(--accent-ink); text-decoration-thickness: 1px; text-underline-offset: 2px; }
+a:hover { color: var(--accent); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+h1, h2, h3 { font-family: var(--display); font-weight: 700; line-height: 1.12; text-wrap: balance; margin: 0; }
+h1 { font-size: clamp(2.2rem, 5.2vw, 3.6rem); letter-spacing: -0.01em; }
+h2 { font-size: clamp(1.45rem, 2.6vw, 1.9rem); margin-top: 0; }
+h3 { font-size: 1.15rem; }
+p { margin: 0; max-width: 72ch; }
+.eyebrow { font-family: var(--mono); font-size: 0.78rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.wrap { max-width: 1080px; margin: 0 auto; }
+.col { max-width: 72ch; }
+
+header.top { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; flex-wrap: wrap; padding-block: 20px 8px; border-bottom: 1px solid var(--line); }
+header.top .brand { font-family: var(--display); font-weight: 700; font-size: 1.2rem; text-decoration: none; color: var(--fg); }
+header.top nav { display: flex; gap: 18px; flex-wrap: wrap; font-size: 0.95rem; }
+header.top nav a { text-decoration: none; color: var(--muted); }
+header.top nav a:hover { color: var(--accent-ink); }
+
+.hero { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); gap: 36px; align-items: center; padding-block: 48px 28px; }
+.hero .lede { font-size: 1.22rem; margin-top: 18px; color: var(--fg); }
+.hero .sub { margin-top: 14px; color: var(--muted); }
+.cta { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 24px; }
+.btn { display: inline-block; padding: 10px 16px; border-radius: 6px; font-weight: 600; text-decoration: none; border: 1px solid var(--accent-ink); color: var(--accent-ink); }
+.btn.primary { background: var(--accent-ink); color: var(--bg); }
+.btn.primary:hover { background: var(--accent); border-color: var(--accent); color: var(--bg); }
+.diagram { min-width: 0; }
+.diagram svg { width: 100%; height: auto; display: block; }
+.diagram figcaption { font-size: 0.9rem; color: var(--muted); margin-top: 8px; max-width: none; }
+
+.figures { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); margin-top: 8px; }
+.figures div { padding: 16px 14px; border-right: 1px solid var(--line); }
+.figures div:last-child { border-right: 0; }
+.figures .num { font-size: 1.7rem; font-weight: 600; display: block; line-height: 1.1; }
+.figures .lbl { font-size: 0.88rem; color: var(--muted); }
+
+section { padding-block: 44px 8px; }
+section > .eyebrow { margin-bottom: 8px; }
+.tracks { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; margin-top: 20px; }
+.track { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 20px 22px; min-width: 0; }
+.track h3 { margin-bottom: 10px; }
+.track dl { margin: 0; display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 6px 14px; font-size: 0.98rem; }
+.track dt { color: var(--muted); }
+.track dd { margin: 0; }
+.formula { font-family: var(--mono); font-size: 0.92rem; background: var(--code-bg); padding: 8px 10px; border-radius: 4px; margin-top: 12px; overflow-x: auto; }
+
+.tablewrap { overflow-x: auto; margin-top: 18px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+table { border-collapse: collapse; width: 100%; min-width: 640px; font-size: 0.95rem; }
+th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--line); vertical-align: middle; white-space: nowrap; }
+th { font-family: var(--mono); font-weight: 600; font-size: 0.76rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+tbody tr:last-child td { border-bottom: 0; }
+td.r, th.r { text-align: right; }
+td.rank { color: var(--muted); width: 2.5em; }
+td.model { font-weight: 600; }
+td.model small { font-weight: 400; color: var(--muted); }
+td.bar { width: 34%; min-width: 180px; }
+.gauge { position: relative; height: 14px; }
+.gauge .ci { position: absolute; top: 6px; height: 2px; background: var(--placebo); left: calc(var(--lo) / var(--max) * 100%); width: calc((var(--hi) - var(--lo)) / var(--max) * 100%); }
+.gauge .pt { position: absolute; top: 0; height: 14px; width: calc(var(--v) / var(--max) * 100%); background: var(--accent); border-radius: 0 3px 3px 0; opacity: 0.85; }
+tr.baseline td { color: var(--muted); border-top: 1px dashed var(--line); }
+.note { font-size: 0.9rem; color: var(--muted); margin-top: 10px; max-width: none; }
+.legend { display: flex; gap: 18px; flex-wrap: wrap; font-size: 0.86rem; color: var(--muted); margin-top: 10px; }
+.legend span::before { content: ""; display: inline-block; width: 14px; height: 10px; margin-right: 6px; vertical-align: -1px; background: var(--accent); border-radius: 2px; }
+.legend span.ci::before { height: 2px; vertical-align: 3px; background: var(--placebo); }
+.neg { color: var(--neg); font-weight: 600; }
+
+.findings { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px 28px; margin-top: 20px; padding: 0; list-style: none; }
+.findings li { border-top: 2px solid var(--accent); padding-top: 10px; min-width: 0; }
+.findings b { display: block; font-family: var(--display); font-size: 1.05rem; margin-bottom: 4px; }
+.findings p { font-size: 0.97rem; }
+
+ol.steps { counter-reset: s; list-style: none; padding: 0; margin: 20px 0 0; display: grid; gap: 14px; max-width: 72ch; }
+ol.steps li { display: grid; grid-template-columns: 2.2rem minmax(0, 1fr); gap: 12px; align-items: start; }
+ol.steps li::before { counter-increment: s; content: counter(s); font-family: var(--mono); font-weight: 600; color: var(--accent-ink); border: 1px solid var(--line); border-radius: 50%; width: 2rem; height: 2rem; display: grid; place-items: center; font-size: 0.9rem; }
+ol.steps b { font-family: var(--display); }
+.guards { margin: 18px 0 0; padding-left: 1.1em; max-width: 72ch; }
+.guards li { margin-bottom: 8px; }
+pre { font-family: var(--mono); font-size: 0.86rem; line-height: 1.5; background: var(--code-bg); border: 1px solid var(--line); border-radius: 6px; padding: 14px 16px; overflow-x: auto; margin: 16px 0 0; max-width: 72ch; }
+code { font-family: var(--mono); font-size: 0.92em; }
+.cite { margin-top: 16px; }
+footer { border-top: 1px solid var(--line); margin-top: 48px; padding-top: 18px; font-size: 0.9rem; color: var(--muted); display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+
+@media (max-width: 760px) {
+  .hero { grid-template-columns: 1fr; gap: 24px; padding-block: 32px 20px; }
+  body { font-size: 16px; }
+  .figures div { border-right: 0; border-bottom: 1px solid var(--line); }
+  .figures div:last-child { border-bottom: 0; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .btn { transition: background-color 120ms ease, color 120ms ease; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="top">
+  <a class="brand" href="#top">ReplayRCA</a>
+  <nav aria-label="Sections">
+    <a href="#tracks">Tracks</a>
+    <a href="#results">Results</a>
+    <a href="#how">How it works</a>
+    <a href="#code">Code</a>
+    <a href="https://github.com/jeremy1392/RCAreplay">GitHub</a>
+  </nav>
+</header>
+
+<section class="hero" id="top">
+  <div>
+    <p class="eyebrow">A benchmark for diagnosing agent failures</p>
+    <h1>Score a diagnosis by what happens when you apply it.</h1>
+    <p class="lede">When an AI agent fails a multi-step task, can another model find the decisive mistake and fix it with one action? ReplayRCA answers by replay: restore the world just before the chosen step, swap in the proposed action, let the same agent continue, and compare with a paired placebo.</p>
+    <p class="sub">No annotations, no LLM judge. Two tracks, post-hoc autopsy and live oversight, share the same score. Tasks come from OpsWorld, a deterministic, procedurally generated e-commerce back office with a multimodal level of QR codes and handwriting.</p>
+    <div class="cta">
+      <a class="btn primary" href="https://github.com/jeremy1392/RCAreplay">Get the code</a>
+      <a class="btn" href="#results">See the results</a>
+    </div>
+  </div>
+  <figure class="diagram">
+    <svg viewBox="0 0 520 300" role="img" aria-labelledby="dtitle ddesc">
+      <title id="dtitle">The counterfactual replay</title>
+      <desc id="ddesc">A failed run is restored just before step t. The proposed fix replaces the agent's action and the agent continues five times; the placebo replays the original action five times. Causal repair is the difference between the two success rates.</desc>
+      <!-- recorded run -->
+      <text x="12" y="26" font-family="JetBrains Mono, monospace" font-size="11" fill="var(--muted)">RECORDED RUN (FAILED)</text>
+      <line x1="12" y1="52" x2="300" y2="52" stroke="var(--line)" stroke-width="2"/>
+      <g fill="var(--placebo)">
+        <circle cx="24" cy="52" r="5"/><circle cx="56" cy="52" r="5"/><circle cx="88" cy="52" r="5"/><circle cx="120" cy="52" r="5"/><circle cx="152" cy="52" r="5"/><circle cx="184" cy="52" r="5"/>
+      </g>
+      <circle cx="216" cy="52" r="8" fill="var(--accent)"/>
+      <text x="216" y="80" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="11" fill="var(--fg)">step t</text>
+      <g fill="var(--placebo)" opacity="0.45"><circle cx="248" cy="52" r="5"/><circle cx="280" cy="52" r="5"/></g>
+      <text x="300" y="56" font-family="JetBrains Mono, monospace" font-size="11" fill="var(--neg)">✕ fail</text>
+      <text x="12" y="104" font-family="Source Sans 3, sans-serif" font-size="12" fill="var(--muted)">restore the state before step t, then branch</text>
+      <!-- branches -->
+      <path d="M216 60 C 216 120, 60 110, 60 140" fill="none" stroke="var(--accent)" stroke-width="2"/>
+      <path d="M216 60 C 216 120, 372 110, 372 140" fill="none" stroke="var(--placebo)" stroke-width="2"/>
+      <!-- fix branch -->
+      <rect x="12" y="140" width="232" height="120" rx="8" fill="var(--accent-soft)"/>
+      <text x="24" y="162" font-family="JetBrains Mono, monospace" font-size="11" fill="var(--accent-ink)">FIX · proposed action at t</text>
+      <text x="24" y="182" font-family="Source Sans 3, sans-serif" font-size="12" fill="var(--fg)">same agent continues, k = 5 times</text>
+      <g>
+        <circle cx="34" cy="212" r="9" fill="var(--accent)"/><circle cx="60" cy="212" r="9" fill="var(--accent)"/><circle cx="86" cy="212" r="9" fill="var(--accent)"/><circle cx="112" cy="212" r="9" fill="var(--accent)"/><circle cx="138" cy="212" r="9" fill="var(--surface)" stroke="var(--accent)" stroke-width="2"/>
+      </g>
+      <text x="24" y="248" font-family="JetBrains Mono, monospace" font-size="15" font-weight="600" fill="var(--fg)">success 4 / 5 = 80 %</text>
+      <!-- placebo branch -->
+      <rect x="276" y="140" width="232" height="120" rx="8" fill="var(--placebo-soft)"/>
+      <text x="288" y="162" font-family="JetBrains Mono, monospace" font-size="11" fill="var(--muted)">PLACEBO · original action at t</text>
+      <text x="288" y="182" font-family="Source Sans 3, sans-serif" font-size="12" fill="var(--fg)">same mechanism, k = 5 times</text>
+      <g>
+        <circle cx="298" cy="212" r="9" fill="var(--placebo)"/><circle cx="324" cy="212" r="9" fill="var(--surface)" stroke="var(--placebo)" stroke-width="2"/><circle cx="350" cy="212" r="9" fill="var(--surface)" stroke="var(--placebo)" stroke-width="2"/><circle cx="376" cy="212" r="9" fill="var(--surface)" stroke="var(--placebo)" stroke-width="2"/><circle cx="402" cy="212" r="9" fill="var(--surface)" stroke="var(--placebo)" stroke-width="2"/>
+      </g>
+      <text x="288" y="248" font-family="JetBrains Mono, monospace" font-size="15" font-weight="600" fill="var(--fg)">success 1 / 5 = 20 %</text>
+      <!-- score -->
+      <text x="260" y="290" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="13" fill="var(--fg)">causal repair = 80 − 20 = <tspan font-weight="600" fill="var(--accent-ink)">+60 points</tspan></text>
+    </svg>
+    <figcaption>One scored diagnosis. Filled circles are successful continuations. The placebo removes the success the agent would have had anyway.</figcaption>
+  </figure>
+</section>
+
+<div class="figures" aria-label="Scale of the study">
+  <div><span class="num">62</span><span class="lbl">calibrated systematic failures</span></div>
+  <div><span class="num">13</span><span class="lbl">diagnosers, autopsy track</span></div>
+  <div><span class="num">5</span><span class="lbl">supervisors, oversight track</span></div>
+  <div><span class="num">87</span><span class="lbl">supervised runs</span></div>
+  <div><span class="num">6,258</span><span class="lbl">worker continuations replayed</span></div>
+</div>
+
+<section id="tracks">
+  <p class="eyebrow">Two tracks, one score</p>
+  <h2>Explain after the fact, or prevent in real time</h2>
+  <div class="tracks">
+    <article class="track">
+      <h3>Autopsy</h3>
+      <dl>
+        <dt>Sees</dt><dd>The complete transcript of a run that failed, and the fact that it failed</dd>
+        <dt>Must</dt><dd>Name the decisive step and propose one replacement action</dd>
+        <dt>Scored by</dt><dd>Causal repair, in points of continuation success</dd>
+      </dl>
+      <div class="formula">causal repair = success(fix) − success(placebo)</div>
+    </article>
+    <article class="track">
+      <h3>Live oversight</h3>
+      <dl>
+        <dt>Sees</dt><dd>The run as it unfolds, up to the irreversible action the agent is about to take; the outcome is unknown</dd>
+        <dt>Must</dt><dd>Before every irreversible action, let it pass or intervene once</dd>
+        <dt>Scored by</dt><dd>Net damage prevented over runs that will fail and runs that will succeed, minus 5 points per intervention</dd>
+      </dl>
+      <div class="formula">net = mean(effect − 5 × intervened)</div>
+    </article>
+  </div>
+</section>
+
+<section id="results">
+  <p class="eyebrow">Results · October 2026</p>
+  <h2>Frontier models repair about half of calibrated failures, and the top is a tie</h2>
+  <p class="col" style="margin-top:12px">Each model ran at its maximal reasoning effort within a 64 000-token output budget (Anthropic models at <code>high</code>), with five continuations per intervention. Intervals are 95 % bootstrap intervals over the 62 items. No pair of models is separated after Holm correction.</p>
+
+  <h3 style="margin-top:28px">Autopsy track</h3>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>#</th><th>Model</th><th>Effort</th><th class="r">Causal repair</th><th>Estimate and 95 % CI</th><th class="r">Reasoning tokens</th></tr></thead>
+      <tbody>
+        <tr><td class="rank num">1</td><td class="model">Grok 4.7</td><td>xhigh</td><td class="r num">+51.3</td><td class="bar"><div class="gauge" style="--v:51.3;--lo:40;--hi:63;--max:66"><div class="ci"></div><div class="pt"></div></div></td><td class="r num">38,820</td></tr>
+        <tr><td class="rank num">2</td><td class="model">Kimi K3</td><td>max</td><td class="r num">+48.4</td><td class="bar"><div class="gauge" style="--v:48.4;--lo:38;--hi:59;--max:66"><div class="ci"></div><div class="pt"></div></div></td><td class="r num">12,099</td></tr>
+        <tr><td class="rank num">3</td><td class="model">Gemini 4 Argon</td><td>high</td><td class="r num">+48.4</td><td class="bar"><div class="gauge" style="--v:48.4;--lo:37;--hi:60;--max:66"><div class="ci"></div><div class="pt"></div></div></td><td class="r num">19,125</td></tr>
+        <tr><td class="rank num">4</td><td class="model">Gemini 3.8 Flash</td><td>high</td><td class="r num">+47.1</td><td class="bar"><div class="gauge" style="--v:47.1;--lo:35;--hi:59;--max:66"><div class="ci"></div><div class="pt"></div></div></td><td class="r num">41,704</td></tr>
+        <tr><td class="rank num">5</td><td class="model">GPT-6.1 Sol</td><td>max</td><td class="r num">+45.2</td><td class="bar"><div class="gauge" style="--v:45.2;--lo:35;--hi:55;--max:66"><div class="ci"></div><div class="pt"></div></div></td><td class="r num">3,385</td></tr>
+        <tr><td class="rank num">6</td><td class="model">GLM 5.3 <small>text-only</small></td><td>max</td><td class="r num">+45.2</td><td class="bar"><div class="gauge" style="--v:45.2;--lo:36;--hi:55;--max:66"><div class="ci"></div><div class="pt"></div></div></td><td class="r num">26,772</td></tr>
+        <tr><td class="rank num">7</td><td class="model">Claude Opus 5.5</td><td>high</td><td class="r num">+42.9</td><td class="bar"><div class="gauge" style="--v:42.9;--lo:33;--hi:53;--max:66"><div class="ci"></div><div class="pt"></div></div></td><td class="r num">1,428</td></tr>
+        <tr><td class="rank num">8</td><td class="model">GPT-6 Astra</td><td>max</td><td class="r num">+42.9</td><td class="bar"><div class="gauge" style="--v:42.9;--lo:32;--hi:54;--max:66"><div class="ci"></div><div class="pt"></div></div></td><td class="r num">4,163</td></tr>
+        <tr><td class="rank num">9</td><td class="model">DeepSeek V4 Pro <small>text-only</small></td><td>max</td><td class="r num">+42.3</td><td class="bar"><div class="gauge" style="--v:42.3;--lo:31;--hi:53;--max:66"><div class="ci"></div><div class="pt"></div></div></td><td class="r num">25,370</td></tr>
+        <tr><td class="rank num">10</td><td class="model">Claude Sonnet 5.5</td><td>high</td><td class="r num">+38.4</td><td class="bar"><div class="gauge" style="--v:38.4;--lo:28;--hi:48;--max:66"><div class="ci"></div><div class="pt"></div></div></td><td class="r num">1,116</td></tr>
+        <tr><td class="rank num">11</td><td class="model">GPT-6 Luna</td><td>max</td><td class="r num">+37.1</td><td class="bar"><div class="gauge" style="--v:37.1;--lo:26;--hi:47;--max:66"><div class="ci"></div><div class="pt"></div></div></td><td class="r num">13,214</td></tr>
+        <tr><td class="rank num">12</td><td class="model">Claude Fable 5.1</td><td>high</td><td class="r num">+36.1</td><td class="bar"><div class="gauge" style="--v:36.1;--lo:26;--hi:47;--max:66"><div class="ci"></div><div class="pt"></div></div></td><td class="r num">2,591</td></tr>
+        <tr><td class="rank num">13</td><td class="model">Claude Haiku 5.5</td><td>high</td><td class="r num">+32.3</td><td class="bar"><div class="gauge" style="--v:32.3;--lo:22;--hi:43;--max:66"><div class="ci"></div><div class="pt"></div></div></td><td class="r num">3,921</td></tr>
+        <tr class="baseline"><td class="rank">—</td><td class="model">Placebo baseline <small>original action at a random step</small></td><td>—</td><td class="r num">−0.6</td><td class="bar"><div class="gauge" style="--v:0;--lo:0;--hi:0;--max:66"></div></td><td class="r num">—</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="legend"><span>causal repair, points over the paired placebo</span><span class="ci">95 % bootstrap interval</span></div>
+  <p class="note">Reasoning tokens = mean hidden reasoning tokens per diagnosis. Text-only models receive a placeholder in place of level-6 attachments.</p>
+
+  <ul class="findings">
+    <li><b>The top is not separable</b><p>None of the 78 pairwise comparisons is significant after Holm correction; the first model significantly below Grok 4.7 even without correction is DeepSeek V4 Pro, at rank 9. Split-half reliability of the ranking is ρ = 0.47, and separating two models 10 points apart with 80 % power needs about 84 items.</p></li>
+    <li><b>Flagships do not lead</b><p>GPT-6 Astra ranks 8th and Claude Fable 5.1 12th. Claude models ran at <code>high</code>; an ablation shows <code>max</code> is worth +15.2 points to Claude Haiku 5.5 (p = 0.011), so the Claude ranks are lower bounds. Reasoning volume is only loosely related to rank (ρ = 0.54, p = 0.056).</p></li>
+    <li><b>The last-step shortcut fails</b><p>GPT-6.1 Sol forced to choose the final step scores +28.1 against +45.2 with free choice (−17.1 points, p = 0.004). Scoring by agreement with a consensus step would rank GPT-6 Astra first and Grok 4.7 third (ρ = 0.43 with the causal score).</p></li>
+    <li><b>Scores replicate, diagnoses less so</b><p>A second sample of GPT-6 Luna scores +33.5 against +37.1 (p = 0.53) and picks the same step in 74 % of items; a reworded prompt gives +30.6 (p = 0.16).</p></li>
+    <li><b>Hard items exist</b><p>5 items are repaired by no model in any continuation; 35 % of items have a model-averaged repair below 20 points and 19 % above 80.</p></li>
+    <li><b>Images: opening beats seeing</b><p>In 17 of the 33 level-6 failures the worker never opened the attachment. Most vision models lose 10 to 15 points at level 6, while the text-only DeepSeek V4 Pro (+42.4) and GLM 5.3 (+39.4) stay competitive by making the worker read the image.</p></li>
+  </ul>
+
+  <h3 style="margin-top:40px">Live oversight track</h3>
+  <p class="col" style="margin-top:8px">87 runs seen by all five supervisors: the 62 failures and 25 calibrated successes as controls. Net damage prevented charges 5 points per intervention; false alarms are interventions on runs that were going to succeed.</p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>#</th><th>Supervisor</th><th class="r">Net</th><th>Estimate and 95 % CI</th><th class="r">False alarms</th><th class="r">Output tokens / call</th></tr></thead>
+      <tbody>
+        <tr><td class="rank num">1</td><td class="model">Gemini 3.8 Flash</td><td class="r num">+29.1</td><td class="bar"><div class="gauge" style="--v:29.1;--lo:21;--hi:38;--max:42"><div class="ci"></div><div class="pt"></div></div></td><td class="r num">2 / 25</td><td class="r num">5,906</td></tr>
+        <tr><td class="rank num">2</td><td class="model">DeepSeek V4.1 Flash <small>open weights</small></td><td class="r num">+27.5</td><td class="bar"><div class="gauge" style="--v:27.5;--lo:19;--hi:36;--max:42"><div class="ci"></div><div class="pt"></div></div></td><td class="r num">3 / 25</td><td class="r num">8,660</td></tr>
+        <tr><td class="rank num">3</td><td class="model">Claude Haiku 5.5</td><td class="r num">+21.7</td><td class="bar"><div class="gauge" style="--v:21.7;--lo:14;--hi:30;--max:42"><div class="ci"></div><div class="pt"></div></div></td><td class="r num">1 / 25</td><td class="r num">1,732</td></tr>
+        <tr><td class="rank num">4</td><td class="model">GPT-6 Luna</td><td class="r num">+19.7</td><td class="bar"><div class="gauge" style="--v:19.7;--lo:12;--hi:28;--max:42"><div class="ci"></div><div class="pt"></div></div></td><td class="r num">8 / 25</td><td class="r num">1,766</td></tr>
+        <tr><td class="rank num">5</td><td class="model">GPT-6.1 Sol</td><td class="r num">+18.1</td><td class="bar"><div class="gauge" style="--v:18.1;--lo:11;--hi:26;--max:42"><div class="ci"></div><div class="pt"></div></div></td><td class="r num">3 / 25</td><td class="r num">1,008</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="legend"><span>net damage prevented, points</span><span class="ci">95 % bootstrap interval</span></div>
+  <p class="note">The two leaders are statistically tied and stay in front for every interruption cost from 0 to 20 points; 3 of 10 pairs are significant after Holm correction. False alarms are not concentrated on the weaker workers' successes (8 % against 18 % on the strongest worker's), and the ranking is unchanged without the strongest worker's runs.</p>
+
+  <h3 style="margin-top:40px">Explaining is not preventing</h3>
+  <p class="col" style="margin-top:8px">Four supervisors were also autopsy diagnosers, on the same 62 failing runs. The live effect is reported without the interruption cost.</p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>Model</th><th class="r">Autopsy</th><th class="r">Live oversight</th><th class="r">Δ</th><th class="r">95 % CI</th><th class="r">p</th></tr></thead>
+      <tbody>
+        <tr><td class="model">GPT-6.1 Sol</td><td class="r num">+45.2</td><td class="r num">+30.6</td><td class="r num neg">−14.5</td><td class="r num">−23 … −5</td><td class="r num">0.002</td></tr>
+        <tr><td class="model">GPT-6 Luna</td><td class="r num">+37.1</td><td class="r num">+32.9</td><td class="r num">−4.2</td><td class="r num">−14 … +6</td><td class="r num">0.45</td></tr>
+        <tr><td class="model">Gemini 3.8 Flash</td><td class="r num">+47.1</td><td class="r num">+45.5</td><td class="r num">−1.6</td><td class="r num">−10 … +7</td><td class="r num">0.77</td></tr>
+        <tr><td class="model">Claude Haiku 5.5</td><td class="r num">+32.3</td><td class="r num">+35.5</td><td class="r num">+3.2</td><td class="r num">−8 … +14</td><td class="r num">0.61</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="note">GPT-6.1 Sol is among the best post-hoc diagnosers and the weakest live supervisor: its interventions come early and 81 % of them make the worker read something rather than redo the pending action. The gap is the only significant one of the four (p = 0.010 after Holm correction); whether it is specific to this model remains to be established.</p>
+</section>
+
+<section id="how">
+  <p class="eyebrow">How it works</p>
+  <h2>From harvested failures to a replayed score</h2>
+  <ol class="steps">
+    <li><div><b>Harvest.</b> Small worker agents attempt generated tasks of OpsWorld. A failure becomes a candidate only if it recurs in at least two of three fresh attempts; API artefacts and step-limit failures are excluded.</div></li>
+    <li><div><b>Calibrate.</b> The worker's own action at its first checkpoint is replayed five times without any change. Failures with spontaneous success at most 20 % and successes with at least 80 % are kept, so that outcomes are stable under restart.</div></li>
+    <li><div><b>Diagnose or supervise.</b> Autopsy: the diagnoser reads the transcript (images included for vision models) and answers with a step and a sanitised replacement action. Oversight: the supervisor is asked before every irreversible action and may intervene once.</div></li>
+    <li><div><b>Replay.</b> The world is restored just before the chosen step, the action is executed, and the worker continues five times; the placebo does the same with the original action. Continuations are cached and shared between models.</div></li>
+    <li><div><b>Report.</b> Leaderboards with bootstrap intervals, paired sign-flip permutation tests with Holm correction, and the reliability of the ranking.</div></li>
+  </ol>
+  <h3 style="margin-top:28px">Guardrails</h3>
+  <ul class="guards">
+    <li><b>Deterministic worlds.</b> Every world comes from a seed, so any state can be restored and every restoration is verified; fresh instances can be generated at will.</li>
+    <li><b>Paired placebo.</b> Only the difference with the agent's own action counts, at the same step and through the same mechanism.</li>
+    <li><b>Anti-injection.</b> Tools never return free text passed to them; in replacement actions, free-text fields are erased or truncated, so a diagnosis cannot smuggle instructions to the worker.</li>
+    <li><b>Equal budgets.</b> The same 64 000-token output budget applies to every call; an answer that exhausts it is invalid and scores zero.</li>
+  </ul>
+</section>
+
+<section id="code">
+  <p class="eyebrow">Code</p>
+  <h2>Run it on your own agents</h2>
+  <p class="col" style="margin-top:12px">The environment, the pipeline, both evaluation tracks and the reports are released under the MIT licence. Python 3.10 or later; models are called through OpenRouter.</p>
+<pre><code>git clone https://github.com/jeremy1392/RCAreplay
+cd RCAreplay
+pip install -r requirements.txt
+cp .env.example .env            # OPENROUTER_API_KEY=...
+python -m replayrca.selftest     # generator, tools and checker, offline
+python -m replayrca.harvest --workers deepseek/deepseek-v4.1-flash-1017 \
+       --templates late_delivery,recall --seeds 10-29 --difficulties 4,5,6 \
+       --out data/items_all.jsonl --budget 10</code></pre>
+  <p class="cite col">Jeremy Canale and Fabien Soulis. <i>ReplayRCA: counterfactual-replay scoring of agent-failure diagnoses and live oversight</i>, 2026. <a href="https://github.com/jeremy1392/RCAreplay">github.com/jeremy1392/RCAreplay</a>. A companion paper is in preparation.</p>
+</section>
+
+<footer>
+  <span>ReplayRCA · MIT licence</span>
+  <span>Jeremy Canale · Fabien Soulis</span>
+</footer>
+
+</div>
+</body>
+</html>
