@@ -1,0 +1,8 @@
+segno>=1.6
+Pillow>=10.1
+numpy>=1.24
+# optional: QR decodability self-test
+opencv-python>=4.8
+# optional: statistical analyses (replayrca.stats) and figures (replayrca.figures)
+scipy>=1.10
+matplotlib>=3.7

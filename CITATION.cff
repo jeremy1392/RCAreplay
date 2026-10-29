@@ -1,0 +1,14 @@
+cff-version: 1.2.0
+message: "If you use this code, please cite it as below."
+title: "ReplayRCA: counterfactual-replay scoring of agent-failure diagnoses and live oversight"
+type: software
+authors:
+  - family-names: Canale
+    given-names: Jeremy
+    email: contact@jeremycanale.com
+  - family-names: Soulis
+    given-names: Fabien
+    email: Fabien.Soulis@univ-paris1.fr
+repository-code: "https://github.com/jeremy1392/RCAreplay"
+license: MIT
+date-released: 2026-10-30
